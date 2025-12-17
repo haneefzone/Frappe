@@ -4,7 +4,6 @@ set -e
 #############################################
 # Frappe Only Auto Installer (Docker-friendly)
 # For: ubuntu:resolute-20251130 container
-#
 # - Installs MariaDB, Redis, Node 18 (via nvm), yarn
 # - Installs python3.13-venv, cron, nano
 # - Configures timezone non-interactively
