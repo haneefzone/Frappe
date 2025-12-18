@@ -224,8 +224,8 @@ run_as_frappe "
     rm -rf frappe-bench
   fi
 
-  echo 'Running: bench init frappe-bench --frappe-branch version-15'
-  bench init frappe-bench --frappe-branch version-15
+  echo 'Running: bench init frappe-bench --frappe-branch version-15 --skip-redis-config-generation'
+  bench init frappe-bench --frappe-branch version-15 --skip-redis-config-generation
 
   cd ~/frappe-bench
 
@@ -301,6 +301,30 @@ EOS
 chmod +x /create_frappe_site_multitenant.sh
 
 ###########################################################
+#  Create startup script for Frappe bench
+###########################################################
+
+echo "Creating Frappe bench startup script ..."
+
+cat >/usr/local/bin/start-frappe-bench.sh <<'EOF'
+#!/bin/bash
+set -e
+
+# Wait for services to be ready
+sleep 5
+
+# Source nvm and start bench
+su - frappe -c "
+  export NVM_DIR=\"\$HOME/.nvm\"
+  [ -s \"\$NVM_DIR/nvm.sh\" ] && . \"\$NVM_DIR/nvm.sh\"
+  cd ~/frappe-bench
+  bench start
+"
+EOF
+
+chmod +x /usr/local/bin/start-frappe-bench.sh
+
+###########################################################
 #  Configure Supervisor for Frappe Bench Auto-start
 ###########################################################
 
@@ -308,13 +332,13 @@ echo "Configuring Supervisor for Frappe bench auto-start ..."
 
 cat >/etc/supervisor/conf.d/frappe-bench.conf <<'EOF'
 [program:frappe-bench]
-command=/bin/bash -c "source /home/frappe/.nvm/nvm.sh && cd /home/frappe/frappe-bench && /home/frappe/.local/bin/bench start"
-user=frappe
+command=/usr/local/bin/start-frappe-bench.sh
 autostart=true
 autorestart=true
 stdout_logfile=/var/log/frappe-bench.log
 stderr_logfile=/var/log/frappe-bench.error.log
-environment=HOME="/home/frappe",USER="frappe"
+stopasgroup=true
+killasgroup=true
 EOF
 
 ###########################################################
@@ -353,6 +377,10 @@ Manual control:
   supervisorctl stop frappe-bench
   supervisorctl start frappe-bench
   supervisorctl restart frappe-bench
+
+View logs:
+  tail -f /var/log/frappe-bench.log
+  tail -f /var/log/frappe-bench.error.log
 
 Access Web UI from host (because of -p HOSTPORT:8000):
   http://localhost:8000
@@ -399,7 +427,7 @@ fi
 
 echo "Starting Supervisor to launch Frappe bench ..."
 service supervisor start || true
-sleep 5
+sleep 10
 
 echo "======================================="
 echo "Frappe Only installation COMPLETED inside container!"
@@ -415,6 +443,8 @@ echo "  /create_frappe_site_multitenant.sh"
 echo
 echo "Frappe bench is now running automatically via Supervisor!"
 echo "Check status: supervisorctl status frappe-bench"
+echo "View logs: tail -f /var/log/frappe-bench.log"
 echo
-echo "Then open from host: http://localhost:8000"
+echo "Wait ~30 seconds for bench to fully start, then open:"
+echo "http://localhost:8000"
 echo "======================================="
